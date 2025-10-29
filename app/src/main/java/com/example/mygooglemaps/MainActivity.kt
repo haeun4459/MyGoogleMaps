@@ -1,8 +1,7 @@
-package com.example.mygooglemaps   // ← 네 Gradle namespace에 맞게 수정!
+package com.example.mygooglemaps
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.location.Location
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,19 +23,17 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 
 class MainActivity : ComponentActivity() {
-
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MapWithMyLocation(fusedLocationClient)
+                    LiveLocationMap(fusedLocationClient)
                 }
             }
         }
@@ -45,53 +42,50 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun MapWithMyLocation(fusedLocationClient: FusedLocationProviderClient) {
-    var hasLocationPermission by remember { mutableStateOf(false) }
+fun LiveLocationMap(fusedLocationClient: FusedLocationProviderClient) {
+    var hasPermission by remember { mutableStateOf(false) }
     var permissionRequested by remember { mutableStateOf(false) }
-    var currentLocation by remember { mutableStateOf<Location?>(null) }
+    var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
-            hasLocationPermission = granted
+            hasPermission = granted
             permissionRequested = true
         }
     )
 
-    // 처음 실행 시 권한 요청
     LaunchedEffect(Unit) {
         launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
-    // 권한 허용 시 현재 위치 받아오기
-    LaunchedEffect(hasLocationPermission) {
-        if (hasLocationPermission) {
-            fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                if (location != null) currentLocation = location
-            }
-        }
-    }
-
     when {
-        hasLocationPermission && currentLocation != null -> {
-            val latLng = LatLng(currentLocation!!.latitude, currentLocation!!.longitude)
-            val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(latLng, 16f)
+        hasPermission -> {
+            val cameraPositionState = rememberCameraPositionState()
+
+            // 📍 현재 위치 가져오기
+            LaunchedEffect(Unit) {
+                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                    if (location != null) {
+                        currentLocation = LatLng(location.latitude, location.longitude)
+                        cameraPositionState.position = CameraPosition.fromLatLngZoom(currentLocation!!, 16f)
+                    }
+                }
             }
 
-            GoogleMap(
-                modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                properties = MapProperties(isMyLocationEnabled = true)
-            ) {
-                Marker(
-                    state = MarkerState(position = latLng),
-                    title = "현재 위치"
+            // 🚀 지도 표시
+            currentLocation?.let { loc ->
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(isMyLocationEnabled = true)
                 )
+            } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
         }
 
-        permissionRequested && !hasLocationPermission -> {
+        permissionRequested && !hasPermission -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("위치 권한이 필요합니다.")
             }
