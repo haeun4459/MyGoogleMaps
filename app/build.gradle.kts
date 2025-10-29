@@ -61,4 +61,9 @@ dependencies {
 
     // ✅ 위치 서비스
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    //방향API
+    implementation("com.google.maps:google-maps-services:2.2.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
 }

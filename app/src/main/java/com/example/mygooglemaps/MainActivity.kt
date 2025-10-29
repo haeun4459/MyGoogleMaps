@@ -21,14 +21,15 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setContent {
             MaterialTheme {
@@ -43,14 +44,14 @@ class MainActivity : ComponentActivity() {
 @SuppressLint("MissingPermission")
 @Composable
 fun LiveLocationMap(fusedLocationClient: FusedLocationProviderClient) {
-    var hasPermission by remember { mutableStateOf(false) }
+    var hasLocationPermission by remember { mutableStateOf(false) }
     var permissionRequested by remember { mutableStateOf(false) }
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
-            hasPermission = granted
+            hasLocationPermission = granted
             permissionRequested = true
         }
     )
@@ -60,32 +61,47 @@ fun LiveLocationMap(fusedLocationClient: FusedLocationProviderClient) {
     }
 
     when {
-        hasPermission -> {
+        hasLocationPermission -> {
             val cameraPositionState = rememberCameraPositionState()
+            val routePoints = remember { mutableStateListOf<LatLng>() }
 
-            // 📍 현재 위치 가져오기
+            // ✅ 1️⃣ 현재 위치 받아오기
             LaunchedEffect(Unit) {
                 fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    if (location != null) {
-                        currentLocation = LatLng(location.latitude, location.longitude)
-                        cameraPositionState.position = CameraPosition.fromLatLngZoom(currentLocation!!, 16f)
+                    location?.let {
+                        currentLocation = LatLng(it.latitude, it.longitude)
+                        cameraPositionState.position = CameraPosition.fromLatLngZoom(currentLocation!!, 15f)
                     }
                 }
             }
 
-            // 🚀 지도 표시
-            currentLocation?.let { loc ->
-                GoogleMap(
-                    modifier = Modifier.fillMaxSize(),
-                    cameraPositionState = cameraPositionState,
-                    properties = MapProperties(isMyLocationEnabled = true)
-                )
-            } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+            // ✅ 2️⃣ 출발 ~ 도착 경로 받아오기 (비동기)
+            LaunchedEffect(Unit) {
+                val route = withContext(Dispatchers.IO) {
+                    MapDirectionHelper.getRoutePoints(
+                        startLat = 37.5665,   // 출발 (서울)
+                        startLng = 126.9780,
+                        endLat = 37.3943,     // 도착 (성남 근처)
+                        endLng = 127.1107
+                    )
+                }
+                routePoints.addAll(route)
+            }
+
+            // ✅ 3️⃣ 지도 표시
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                properties = MapProperties(isMyLocationEnabled = true)
+            ) {
+                // 파란 경로 선
+                if (routePoints.isNotEmpty()) {
+                    Polyline(points = routePoints, color = androidx.compose.ui.graphics.Color.Blue)
+                }
             }
         }
 
-        permissionRequested && !hasPermission -> {
+        permissionRequested && !hasLocationPermission -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("위치 권한이 필요합니다.")
             }
