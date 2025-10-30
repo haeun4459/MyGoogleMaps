@@ -59,7 +59,7 @@ fun MapWithDirection() {
         hasLocationPermission -> {
             // ✅ 서울시청 → 판교역으로 변경
             val seoul = LatLng(37.5665, 126.9780) // 서울시청
-            val pangyo = LatLng(37.3947, 127.1115) // 판교역
+            val station = LatLng(37.5551, 126.9880) // 판교역
 
             val cameraPositionState = rememberCameraPositionState {
                 position = CameraPosition.fromLatLngZoom(seoul, 10f)
@@ -72,13 +72,13 @@ fun MapWithDirection() {
             LaunchedEffect(Unit) {
                 scope.launch {
                     try {
-                        println("📡 요청 중: ${seoul.latitude},${seoul.longitude} → ${pangyo.latitude},${pangyo.longitude}")
+                        println("📡 요청 중: ${seoul.latitude},${seoul.longitude} → ${station.latitude},${station.longitude}")
 
                         val result = MapDirectionHelper.getRoutePoints(
                             seoul.latitude,
                             seoul.longitude,
-                            pangyo.latitude,
-                            pangyo.longitude
+                            station.latitude,
+                            station.longitude
                         )
                         routePoints = result
                         if (result.isEmpty()) {
@@ -103,7 +103,7 @@ fun MapWithDirection() {
                     title = "출발지: 서울시청"
                 )
                 Marker(
-                    state = MarkerState(position = pangyo),
+                    state = MarkerState(position = station),
                     title = "도착지: 판교역"
                 )
 

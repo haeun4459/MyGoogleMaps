@@ -20,13 +20,19 @@ object MapDirectionHelper {
     ): List<com.google.android.gms.maps.model.LatLng> = withContext(Dispatchers.IO) {
         try {
             val result = DirectionsApi.newRequest(context)
-                .mode(TravelMode.DRIVING)
-                .language("ko")      // ✅ 한국어 응답
-                .region("kr")        // ✅ 한국 지역 강제 지정
-                .alternatives(true)  // ✅ 대체 경로도 허용
+                .mode(TravelMode.WALKING)
+                .language("ko")
+                .region("kr")
+                .alternatives(true)
                 .origin(com.google.maps.model.LatLng(startLat, startLng))
                 .destination(com.google.maps.model.LatLng(endLat, endLng))
                 .await()
+
+// ✅ 추가: 응답 상태를 콘솔(Logcat)에 출력
+            println("✅ Directions API full result: $result")
+            println("✅ Routes size: ${result.routes.size}")
+
+
 
             val path = mutableListOf<com.google.android.gms.maps.model.LatLng>()
 
