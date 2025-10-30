@@ -16,25 +16,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import androidx.compose.ui.graphics.Color
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    LiveLocationMap(fusedLocationClient)
+                    MapWithDirection()
                 }
             }
         }
@@ -43,10 +38,9 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun LiveLocationMap(fusedLocationClient: FusedLocationProviderClient) {
+fun MapWithDirection() {
     var hasLocationPermission by remember { mutableStateOf(false) }
     var permissionRequested by remember { mutableStateOf(false) }
-    var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -56,59 +50,88 @@ fun LiveLocationMap(fusedLocationClient: FusedLocationProviderClient) {
         }
     )
 
+    // ✅ 권한 요청
     LaunchedEffect(Unit) {
         launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
     when {
         hasLocationPermission -> {
-            val cameraPositionState = rememberCameraPositionState()
-            val routePoints = remember { mutableStateListOf<LatLng>() }
+            // ✅ 서울시청 → 판교역으로 변경
+            val seoul = LatLng(37.5665, 126.9780) // 서울시청
+            val pangyo = LatLng(37.3947, 127.1115) // 판교역
 
-            // ✅ 1️⃣ 현재 위치 받아오기
+            val cameraPositionState = rememberCameraPositionState {
+                position = CameraPosition.fromLatLngZoom(seoul, 10f)
+            }
+
+            var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
+            val scope = rememberCoroutineScope()
+
+            // ✅ Directions API 호출
             LaunchedEffect(Unit) {
-                fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-                    location?.let {
-                        currentLocation = LatLng(it.latitude, it.longitude)
-                        cameraPositionState.position = CameraPosition.fromLatLngZoom(currentLocation!!, 15f)
+                scope.launch {
+                    try {
+                        println("📡 요청 중: ${seoul.latitude},${seoul.longitude} → ${pangyo.latitude},${pangyo.longitude}")
+
+                        val result = MapDirectionHelper.getRoutePoints(
+                            seoul.latitude,
+                            seoul.longitude,
+                            pangyo.latitude,
+                            pangyo.longitude
+                        )
+                        routePoints = result
+                        if (result.isEmpty()) {
+                            println("❌ No route points returned (check Directions API)")
+                        } else {
+                            println("✅ Route points loaded: ${result.size}")
+                        }
+                    } catch (e: Exception) {
+                        println("🚨 Directions API Error: ${e.message}")
                     }
                 }
             }
 
-            // ✅ 2️⃣ 출발 ~ 도착 경로 받아오기 (비동기)
-            LaunchedEffect(Unit) {
-                val route = withContext(Dispatchers.IO) {
-                    MapDirectionHelper.getRoutePoints(
-                        startLat = 37.5665,   // 출발 (서울)
-                        startLng = 126.9780,
-                        endLat = 37.3943,     // 도착 (성남 근처)
-                        endLng = 127.1107
-                    )
-                }
-                routePoints.addAll(route)
-            }
-
-            // ✅ 3️⃣ 지도 표시
+            // ✅ 지도 표시
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
                 properties = MapProperties(isMyLocationEnabled = true)
             ) {
-                // 파란 경로 선
+                Marker(
+                    state = MarkerState(position = seoul),
+                    title = "출발지: 서울시청"
+                )
+                Marker(
+                    state = MarkerState(position = pangyo),
+                    title = "도착지: 판교역"
+                )
+
+                // ✅ 경로선 표시
                 if (routePoints.isNotEmpty()) {
-                    Polyline(points = routePoints, color = androidx.compose.ui.graphics.Color.Blue)
+                    Polyline(
+                        points = routePoints,
+                        color = Color(0xFF1E88E5),
+                        width = 10f
+                    )
                 }
             }
         }
 
         permissionRequested && !hasLocationPermission -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 Text("위치 권한이 필요합니다.")
             }
         }
 
         else -> {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
         }
