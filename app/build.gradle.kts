@@ -48,6 +48,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -62,8 +63,13 @@ dependencies {
     // ✅ 위치 서비스
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
-    //방향API
+    // ✅ Directions API
     implementation("com.google.maps:google-maps-services:2.2.0")
+
+    // ✅ Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+    // ✅ Kakao SDK (User + Common)
+    implementation("com.kakao.sdk:v2-user:2.20.3")
+    implementation("com.kakao.sdk:v2-common:2.20.3")
 }

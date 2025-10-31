@@ -3,6 +3,7 @@ package com.example.mygooglemaps
 import android.Manifest
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,10 +23,23 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.launch
 
+// ✅ Kakao SDK import
+import com.kakao.sdk.common.KakaoSdk
+import com.kakao.sdk.common.util.Utility
+
 class MainActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // ✅ Kakao SDK 초기화 (네이티브 앱 키 넣기)
+        KakaoSdk.init(this, "d75453336091add4a1ac5c5a69078515")
+
+        // ✅ 카카오 KeyHash 출력
+        val keyHash = Utility.getKeyHash(this)
+        Log.e("KAKAO_KEY_HASH", keyHash)
+
+        // ✅ UI (지도 + 경로)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -50,16 +64,16 @@ fun MapWithDirection() {
         }
     )
 
-    // ✅ 권한 요청
+    // ✅ 위치 권한 요청
     LaunchedEffect(Unit) {
         launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
     when {
         hasLocationPermission -> {
-            // ✅ 서울시청 → 판교역으로 변경
+            // ✅ 출발지/도착지 설정
             val seoul = LatLng(37.5665, 126.9780) // 서울시청
-            val station = LatLng(37.5551, 126.9880) // 판교역
+            val gangnam = LatLng(37.4979, 127.0276) // 강남역
 
             val cameraPositionState = rememberCameraPositionState {
                 position = CameraPosition.fromLatLngZoom(seoul, 10f)
@@ -72,13 +86,13 @@ fun MapWithDirection() {
             LaunchedEffect(Unit) {
                 scope.launch {
                     try {
-                        println("📡 요청 중: ${seoul.latitude},${seoul.longitude} → ${station.latitude},${station.longitude}")
+                        println("📡 요청 중: ${seoul.latitude},${seoul.longitude} → ${gangnam.latitude},${gangnam.longitude}")
 
                         val result = MapDirectionHelper.getRoutePoints(
                             seoul.latitude,
                             seoul.longitude,
-                            station.latitude,
-                            station.longitude
+                            gangnam.latitude,
+                            gangnam.longitude
                         )
                         routePoints = result
                         if (result.isEmpty()) {
@@ -103,8 +117,8 @@ fun MapWithDirection() {
                     title = "출발지: 서울시청"
                 )
                 Marker(
-                    state = MarkerState(position = station),
-                    title = "도착지: 판교역"
+                    state = MarkerState(position = gangnam),
+                    title = "도착지: 강남역"
                 )
 
                 // ✅ 경로선 표시

@@ -1,67 +1,67 @@
 package com.example.mygooglemaps
 
-import com.google.maps.DirectionsApi
-import com.google.maps.GeoApiContext
-import com.google.maps.model.TravelMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import com.google.android.gms.maps.model.LatLng
 
 object MapDirectionHelper {
 
-    private val context = GeoApiContext.Builder()
-        .apiKey("AIzaSyCW5MXLusoUzLSFiZGdirbZv7V2h6Zazw0")
-        .build()
+    // ✅ Kakao REST API 키 (네 REST API 키로 교체)
+    private const val KAKAO_API_KEY = "KakaoAK b0d04327171c2efc6885e9d9a153ca55"
 
     suspend fun getRoutePoints(
         startLat: Double,
         startLng: Double,
         endLat: Double,
         endLng: Double
-    ): List<com.google.android.gms.maps.model.LatLng> = withContext(Dispatchers.IO) {
+    ): List<LatLng> = withContext(Dispatchers.IO) {
+        val points = mutableListOf<LatLng>()
+
         try {
-            val result = DirectionsApi.newRequest(context)
-                .mode(TravelMode.WALKING)
-                .language("ko")
-                .region("kr")
-                .alternatives(true)
-                .origin(com.google.maps.model.LatLng(startLat, startLng))
-                .destination(com.google.maps.model.LatLng(endLat, endLng))
-                .await()
+            val start = URLEncoder.encode("$startLng,$startLat", "UTF-8")
+            val end = URLEncoder.encode("$endLng,$endLat", "UTF-8")
 
-// ✅ 추가: 응답 상태를 콘솔(Logcat)에 출력
-            println("✅ Directions API full result: $result")
-            println("✅ Routes size: ${result.routes.size}")
+            // ✅ Kakao Mobility Directions API 호출 URL
+            val urlStr =
+                "https://apis-navi.kakaomobility.com/v1/directions?origin=$start&destination=$end"
 
+            val url = URL(urlStr)
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Authorization", KAKAO_API_KEY)
 
+            val response = conn.inputStream.bufferedReader().use { it.readText() }
 
-            val path = mutableListOf<com.google.android.gms.maps.model.LatLng>()
+            val json = JSONObject(response)
+            val routes = json.getJSONArray("routes")
 
-            if (result.routes.isEmpty()) {
-                println("❌ No routes found. Try different coordinates.")
-                return@withContext emptyList()
-            }
+            if (routes.length() > 0) {
+                val sections = routes.getJSONObject(0).getJSONArray("sections")
+                val roads = sections.getJSONObject(0).getJSONArray("roads")
 
-            val route = result.routes[0]
-            route.legs.forEach { leg ->
-                leg.steps.forEach { step ->
-                    step.polyline.decodePath().forEach { latLng ->
-                        path.add(
-                            com.google.android.gms.maps.model.LatLng(
-                                latLng.lat,
-                                latLng.lng
-                            )
-                        )
+                for (i in 0 until roads.length()) {
+                    val road = roads.getJSONObject(i)
+                    val vertexes = road.getJSONArray("vertexes")
+
+                    // vertexes 배열은 [x1, y1, x2, y2, x3, y3, ...] 형태임
+                    for (j in 0 until vertexes.length() step 2) {
+                        val lng = vertexes.getDouble(j)
+                        val lat = vertexes.getDouble(j + 1)
+                        points.add(LatLng(lat, lng))
                     }
                 }
             }
 
-            println("✅ Route loaded successfully! Total points: ${path.size}")
-            path
-
+            println("✅ Kakao Directions 경로 좌표 ${points.size}개 불러옴")
         } catch (e: Exception) {
             e.printStackTrace()
-            println("🚨 Directions API Error: ${e.message}")
-            emptyList()
+            println("🚨 Kakao Directions API 오류: ${e.message}")
         }
+
+        points
     }
 }
