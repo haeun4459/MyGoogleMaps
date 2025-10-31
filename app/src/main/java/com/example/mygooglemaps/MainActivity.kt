@@ -17,13 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import kotlinx.coroutines.launch
-
-// ✅ Kakao SDK import
 import com.kakao.sdk.common.KakaoSdk
 import com.kakao.sdk.common.util.Utility
 
@@ -32,18 +29,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ✅ Kakao SDK 초기화 (네이티브 앱 키 넣기)
+        // ✅ Kakao SDK 초기화 (네이티브 앱 키)
         KakaoSdk.init(this, "d75453336091add4a1ac5c5a69078515")
 
-        // ✅ 카카오 KeyHash 출력
+        // ✅ KeyHash 로그 출력
         val keyHash = Utility.getKeyHash(this)
         Log.e("KAKAO_KEY_HASH", keyHash)
 
-        // ✅ UI (지도 + 경로)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MapWithDirection()
+                    KakaoAddressSearchMap()
                 }
             }
         }
@@ -52,7 +48,7 @@ class MainActivity : ComponentActivity() {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun MapWithDirection() {
+fun KakaoAddressSearchMap() {
     var hasLocationPermission by remember { mutableStateOf(false) }
     var permissionRequested by remember { mutableStateOf(false) }
 
@@ -71,38 +67,22 @@ fun MapWithDirection() {
 
     when {
         hasLocationPermission -> {
-            // ✅ 출발지/도착지 설정
-            val seoul = LatLng(37.5665, 126.9780) // 서울시청
-            val gangnam = LatLng(37.4979, 127.0276) // 강남역
-
-            val cameraPositionState = rememberCameraPositionState {
-                position = CameraPosition.fromLatLngZoom(seoul, 10f)
-            }
-
-            var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
+            val cameraPositionState = rememberCameraPositionState()
             val scope = rememberCoroutineScope()
+            var searchedLocation by remember { mutableStateOf<LatLng?>(null) }
 
-            // ✅ Directions API 호출
+            // ✅ Kakao 주소검색 (서울역 → 좌표 변환)
             LaunchedEffect(Unit) {
                 scope.launch {
-                    try {
-                        println("📡 요청 중: ${seoul.latitude},${seoul.longitude} → ${gangnam.latitude},${gangnam.longitude}")
+                    val kakaoApiKey = "b0d04327171c2efc6885e9d9a153ca55" // ← REST API 키
+                    val result = MapDirectionHelper.getLatLngFromAddress("서울특별시 용산구 한강대로 405", kakaoApiKey)
 
-                        val result = MapDirectionHelper.getRoutePoints(
-                            seoul.latitude,
-                            seoul.longitude,
-                            gangnam.latitude,
-                            gangnam.longitude
-                        )
-                        routePoints = result
-                        if (result.isEmpty()) {
-                            println("❌ No route points returned (check Directions API)")
-                        } else {
-                            println("✅ Route points loaded: ${result.size}")
-                        }
-                    } catch (e: Exception) {
-                        println("🚨 Directions API Error: ${e.message}")
-                    }
+
+                    result?.let { (lat, lng) ->
+                        searchedLocation = LatLng(lat, lng)
+                        cameraPositionState.position = CameraPosition.fromLatLngZoom(searchedLocation!!, 15f)
+                        println("✅ Kakao 주소 검색 성공: 서울역 → $searchedLocation")
+                    } ?: println("❌ Kakao 주소 검색 실패")
                 }
             }
 
@@ -112,40 +92,20 @@ fun MapWithDirection() {
                 cameraPositionState = cameraPositionState,
                 properties = MapProperties(isMyLocationEnabled = true)
             ) {
-                Marker(
-                    state = MarkerState(position = seoul),
-                    title = "출발지: 서울시청"
-                )
-                Marker(
-                    state = MarkerState(position = gangnam),
-                    title = "도착지: 강남역"
-                )
-
-                // ✅ 경로선 표시
-                if (routePoints.isNotEmpty()) {
-                    Polyline(
-                        points = routePoints,
-                        color = Color(0xFF1E88E5),
-                        width = 10f
-                    )
+                searchedLocation?.let {
+                    Marker(state = MarkerState(position = it), title = "검색 결과: 서울역")
                 }
             }
         }
 
         permissionRequested && !hasLocationPermission -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("위치 권한이 필요합니다.")
             }
         }
 
         else -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.fillMaxSize(), Alignment.Center) {
                 CircularProgressIndicator()
             }
         }
